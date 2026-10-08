@@ -15,5 +15,14 @@
         <li>Bank statements</li>
         <li>Receipts</li>
     </ul>
+
+    <button type="button" id="add-document">Add document</button>
+    <p id="document-message" aria-live="polite"></p>
+
+    <script>
+        document.getElementById("add-document").addEventListener("click", function () {
+            document.getElementById("document-message").textContent = "Document added";
+        });
+    </script>
 </body>
 </html>
