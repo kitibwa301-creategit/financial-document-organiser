@@ -21,6 +21,9 @@
 
     <script>
         document.getElementById("add-document").addEventListener("click", function () {
+            const newDocument = document.createElement("li");
+            newDocument.textContent = "New document";
+            document.querySelector("ul").appendChild(newDocument);
             document.getElementById("document-message").textContent = "Document added";
         });
     </script>
