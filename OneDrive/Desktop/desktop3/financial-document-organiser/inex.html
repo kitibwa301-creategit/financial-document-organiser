@@ -21,6 +21,20 @@
     <p id="document-message" aria-live="polite"></p>
 
     <script>
+        const documentsList = document.querySelector("ul");
+
+        function addRemoveButton(documentItem) {
+            const removeButton = document.createElement("button");
+            removeButton.type = "button";
+            removeButton.textContent = "Remove";
+            removeButton.addEventListener("click", function () {
+                documentItem.remove();
+            });
+            documentItem.appendChild(removeButton);
+        }
+
+        documentsList.querySelectorAll("li").forEach(addRemoveButton);
+
         document.getElementById("add-document").addEventListener("click", function () {
             const documentNameInput = document.getElementById("document-name");
             const documentName = documentNameInput.value.trim();
@@ -29,8 +43,9 @@
             }
 
             const newDocument = document.createElement("li");
-            newDocument.textContent = documentName;
-            document.querySelector("ul").appendChild(newDocument);
+            newDocument.appendChild(document.createTextNode(documentName));
+            addRemoveButton(newDocument);
+            documentsList.appendChild(newDocument);
             documentNameInput.value = "";
             document.getElementById("document-message").textContent = "Document added";
         });
