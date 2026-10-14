@@ -16,14 +16,22 @@
         <li>Receipts</li>
     </ul>
 
+    <input type="text" id="document-name" aria-label="Document name">
     <button type="button" id="add-document">Add document</button>
     <p id="document-message" aria-live="polite"></p>
 
     <script>
         document.getElementById("add-document").addEventListener("click", function () {
+            const documentNameInput = document.getElementById("document-name");
+            const documentName = documentNameInput.value.trim();
+            if (!documentName) {
+                return;
+            }
+
             const newDocument = document.createElement("li");
-            newDocument.textContent = "New document";
+            newDocument.textContent = documentName;
             document.querySelector("ul").appendChild(newDocument);
+            documentNameInput.value = "";
             document.getElementById("document-message").textContent = "Document added";
         });
     </script>
