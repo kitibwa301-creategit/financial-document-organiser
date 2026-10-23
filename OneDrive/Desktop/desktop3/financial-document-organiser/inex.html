@@ -22,6 +22,50 @@
 
     <script>
         const documentsList = document.querySelector("ul");
+        const storageKey = "financial-documents";
+        const defaultDocumentNames = Array.from(documentsList.querySelectorAll("li"))
+            .map(function (documentItem) {
+                return documentItem.textContent.trim();
+            });
+
+        function saveDocuments() {
+            const documentNames = Array.from(documentsList.querySelectorAll("li"))
+                .map(function (documentItem) {
+                    return documentItem.firstChild.textContent;
+                });
+            try {
+                window.localStorage.setItem(storageKey, JSON.stringify(documentNames));
+            } catch (error) {
+                console.error("Unable to save documents to localStorage.", error);
+            }
+        }
+
+        function loadDocuments() {
+            let savedDocuments;
+            try {
+                savedDocuments = window.localStorage.getItem(storageKey);
+            } catch (error) {
+                console.error("Unable to read documents from localStorage.", error);
+                return defaultDocumentNames;
+            }
+
+            if (savedDocuments === null) {
+                return defaultDocumentNames;
+            }
+
+            try {
+                const parsedDocuments = JSON.parse(savedDocuments);
+                if (Array.isArray(parsedDocuments) && parsedDocuments.every(function (name) {
+                    return typeof name === "string" && name.trim() !== "";
+                })) {
+                    return parsedDocuments;
+                }
+                console.warn("Saved documents are invalid; using the default documents.");
+            } catch (error) {
+                console.warn("Saved documents could not be parsed; using the default documents.", error);
+            }
+            return defaultDocumentNames;
+        }
 
         function addRemoveButton(documentItem) {
             const removeButton = document.createElement("button");
@@ -29,11 +73,18 @@
             removeButton.textContent = "Remove";
             removeButton.addEventListener("click", function () {
                 documentItem.remove();
+                saveDocuments();
             });
             documentItem.appendChild(removeButton);
         }
 
-        documentsList.querySelectorAll("li").forEach(addRemoveButton);
+        documentsList.replaceChildren();
+        loadDocuments().forEach(function (documentName) {
+            const documentItem = document.createElement("li");
+            documentItem.appendChild(document.createTextNode(documentName));
+            addRemoveButton(documentItem);
+            documentsList.appendChild(documentItem);
+        });
 
         document.getElementById("add-document").addEventListener("click", function () {
             const documentNameInput = document.getElementById("document-name");
@@ -46,6 +97,7 @@
             newDocument.appendChild(document.createTextNode(documentName));
             addRemoveButton(newDocument);
             documentsList.appendChild(newDocument);
+            saveDocuments();
             documentNameInput.value = "";
             document.getElementById("document-message").textContent = "Document added";
         });
