@@ -10,6 +10,9 @@
         <p>Keep your Financial documents organised and easy to find</p>
 
     <h2>Documents we organise</h2>
+    <label for="document-search">Search documents</label>
+    <input type="search" id="document-search">
+    <p id="no-documents-found" aria-live="polite" hidden>No documents found</p>
     <ul>
         <li>Invoices</li>
         <li>Bank statements</li>
@@ -22,6 +25,8 @@
 
     <script>
         const documentsList = document.querySelector("ul");
+        const documentSearchInput = document.getElementById("document-search");
+        const noDocumentsMessage = document.getElementById("no-documents-found");
         const storageKey = "financial-documents";
         const defaultDocumentNames = Array.from(documentsList.querySelectorAll("li"))
             .map(function (documentItem) {
@@ -67,12 +72,28 @@
             return defaultDocumentNames;
         }
 
+        function filterDocuments() {
+            const query = documentSearchInput.value.trim().toLowerCase();
+            let matchingDocuments = 0;
+            documentsList.querySelectorAll("li").forEach(function (documentItem) {
+                const matches = documentItem.firstChild.textContent.toLowerCase().includes(query);
+                documentItem.hidden = !matches;
+                if (matches) {
+                    matchingDocuments += 1;
+                }
+            });
+            noDocumentsMessage.hidden = matchingDocuments > 0;
+        }
+
+        documentSearchInput.addEventListener("input", filterDocuments);
+
         function addRemoveButton(documentItem) {
             const removeButton = document.createElement("button");
             removeButton.type = "button";
             removeButton.textContent = "Remove";
             removeButton.addEventListener("click", function () {
                 documentItem.remove();
+                filterDocuments();
                 saveDocuments();
             });
             documentItem.appendChild(removeButton);
@@ -85,6 +106,7 @@
             addRemoveButton(documentItem);
             documentsList.appendChild(documentItem);
         });
+        filterDocuments();
 
         document.getElementById("add-document").addEventListener("click", function () {
             const documentNameInput = document.getElementById("document-name");
@@ -97,6 +119,7 @@
             newDocument.appendChild(document.createTextNode(documentName));
             addRemoveButton(newDocument);
             documentsList.appendChild(newDocument);
+            filterDocuments();
             saveDocuments();
             documentNameInput.value = "";
             document.getElementById("document-message").textContent = "Document added";
