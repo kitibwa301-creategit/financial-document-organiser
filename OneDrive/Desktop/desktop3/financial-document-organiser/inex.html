@@ -88,6 +88,10 @@
         documentSearchInput.addEventListener("input", filterDocuments);
 
         function addRemoveButton(documentItem) {
+            const editButton = document.createElement("button");
+            editButton.type = "button";
+            editButton.textContent = "Edit";
+
             const removeButton = document.createElement("button");
             removeButton.type = "button";
             removeButton.textContent = "Remove";
@@ -96,6 +100,61 @@
                 filterDocuments();
                 saveDocuments();
             });
+
+            editButton.addEventListener("click", function () {
+                const nameText = documentItem.firstChild;
+                const nameInput = document.createElement("input");
+                nameInput.type = "text";
+                nameInput.value = nameText.textContent;
+                nameInput.setAttribute("aria-label", "Document name");
+
+                const validationMessage = document.createElement("span");
+                validationMessage.setAttribute("aria-live", "polite");
+
+                const saveButton = document.createElement("button");
+                saveButton.type = "button";
+                saveButton.textContent = "Save";
+
+                const cancelButton = document.createElement("button");
+                cancelButton.type = "button";
+                cancelButton.textContent = "Cancel";
+
+                documentItem.replaceChild(nameInput, nameText);
+                documentItem.insertBefore(validationMessage, editButton);
+                documentItem.insertBefore(saveButton, editButton);
+                documentItem.insertBefore(cancelButton, editButton);
+                editButton.hidden = true;
+                removeButton.hidden = true;
+
+                saveButton.addEventListener("click", function () {
+                    const updatedName = nameInput.value.trim();
+                    if (!updatedName) {
+                        validationMessage.textContent = "Document name cannot be empty.";
+                        return;
+                    }
+
+                    nameText.textContent = updatedName;
+                    documentItem.replaceChild(nameText, nameInput);
+                    validationMessage.remove();
+                    saveButton.remove();
+                    cancelButton.remove();
+                    editButton.hidden = false;
+                    removeButton.hidden = false;
+                    filterDocuments();
+                    saveDocuments();
+                });
+
+                cancelButton.addEventListener("click", function () {
+                    documentItem.replaceChild(nameText, nameInput);
+                    validationMessage.remove();
+                    saveButton.remove();
+                    cancelButton.remove();
+                    editButton.hidden = false;
+                    removeButton.hidden = false;
+                });
+            });
+
+            documentItem.appendChild(editButton);
             documentItem.appendChild(removeButton);
         }
 
