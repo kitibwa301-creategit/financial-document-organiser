@@ -20,6 +20,16 @@
     </ul>
 
     <input type="text" id="document-name" aria-label="Document name">
+    <label for="document-category">Category</label>
+    <select id="document-category" aria-label="Document category">
+        <option value="Invoices">Invoices</option>
+        <option value="Bank statements">Bank statements</option>
+        <option value="Receipts">Receipts</option>
+        <option value="Bills">Bills</option>
+        <option value="Other" selected>Other</option>
+        <option value="Contracts">Contracts</option>
+        <option value="Tax documents">Tax documents</option>
+    </select>
     <button type="button" id="add-document">Add document</button>
     <p id="document-message" aria-live="polite"></p>
 
@@ -28,18 +38,59 @@
         const documentSearchInput = document.getElementById("document-search");
         const noDocumentsMessage = document.getElementById("no-documents-found");
         const storageKey = "financial-documents";
-        const defaultDocumentNames = Array.from(documentsList.querySelectorAll("li"))
+        const categories = [
+            "Invoices",
+            "Bank statements",
+            "Receipts",
+            "Bills",
+            "Other",
+            "Contracts",
+            "Tax documents"
+        ];
+        const validCategories = categories.concat("Uncategorized");
+        const defaultDocuments = Array.from(documentsList.querySelectorAll("li"))
             .map(function (documentItem) {
-                return documentItem.textContent.trim();
+                const name = documentItem.textContent.trim();
+                return { name: name, category: name };
             });
+        let shouldSaveAfterLoad = true;
 
         function saveDocuments() {
-            const documentNames = Array.from(documentsList.querySelectorAll("li"))
-                .map(function (documentItem) {
-                    return documentItem.firstChild.textContent;
-                });
+            const documents = [];
+
+            for (const documentItem of documentsList.querySelectorAll("li")) {
+                const nameText = documentItem.querySelector(".document-name");
+                const nameInput = documentItem.querySelector(".document-name-input");
+                const categoryText = documentItem.querySelector(".document-category");
+                const categorySelect = documentItem.querySelector(".document-category-select");
+
+                const name = nameText
+                    ? nameText.textContent
+                    : nameInput && nameInput.hasAttribute("data-original-value")
+                        ? nameInput.dataset.originalValue
+                        : null;
+                const category = categoryText
+                    ? categoryText.textContent
+                    : categorySelect && categorySelect.hasAttribute("data-original-value")
+                        ? categorySelect.dataset.originalValue
+                        : null;
+
+                if (
+                    typeof name !== "string" ||
+                    name.trim() === "" ||
+                    typeof category !== "string" ||
+                    category.trim() === "" ||
+                    !validCategories.includes(category)
+                ) {
+                    console.error("Unable to save documents: a document has an invalid committed name or category.");
+                    return;
+                }
+
+                documents.push({ name: name, category: category });
+            }
+
             try {
-                window.localStorage.setItem(storageKey, JSON.stringify(documentNames));
+                window.localStorage.setItem(storageKey, JSON.stringify(documents));
             } catch (error) {
                 console.error("Unable to save documents to localStorage.", error);
             }
@@ -51,33 +102,71 @@
                 savedDocuments = window.localStorage.getItem(storageKey);
             } catch (error) {
                 console.error("Unable to read documents from localStorage.", error);
-                return defaultDocumentNames;
+                shouldSaveAfterLoad = false;
+                return defaultDocuments;
             }
 
             if (savedDocuments === null) {
-                return defaultDocumentNames;
+                return defaultDocuments;
             }
 
             try {
                 const parsedDocuments = JSON.parse(savedDocuments);
-                if (Array.isArray(parsedDocuments) && parsedDocuments.every(function (name) {
-                    return typeof name === "string" && name.trim() !== "";
-                })) {
-                    return parsedDocuments;
+                if (Array.isArray(parsedDocuments)) {
+                    const normalizedDocuments = parsedDocuments.map(function (documentData) {
+                        if (typeof documentData === "string" && documentData.trim() !== "") {
+                            return {
+                                name: documentData.trim(),
+                                category: "Uncategorized"
+                            };
+                        }
+
+                        if (
+                            documentData &&
+                            typeof documentData === "object" &&
+                            !Array.isArray(documentData) &&
+                            typeof documentData.name === "string" &&
+                            documentData.name.trim() !== "" &&
+                            typeof documentData.category === "string" &&
+                            validCategories.includes(documentData.category)
+                        ) {
+                            return {
+                                name: documentData.name.trim(),
+                                category: documentData.category
+                            };
+                        }
+
+                        return null;
+                    });
+
+                    if (normalizedDocuments.every(function (documentData) {
+                        return documentData !== null;
+                    })) {
+                        return normalizedDocuments;
+                    }
                 }
                 console.warn("Saved documents are invalid; using the default documents.");
             } catch (error) {
                 console.warn("Saved documents could not be parsed; using the default documents.", error);
             }
-            return defaultDocumentNames;
+            shouldSaveAfterLoad = false;
+            return defaultDocuments;
         }
 
         function filterDocuments() {
             const query = documentSearchInput.value.trim().toLowerCase();
             let matchingDocuments = 0;
             documentsList.querySelectorAll("li").forEach(function (documentItem) {
-                const matches = documentItem.firstChild.textContent.toLowerCase().includes(query);
-                documentItem.hidden = !matches;
+                const nameInput = documentItem.querySelector(".document-name-input");
+                const nameText = documentItem.querySelector(".document-name");
+                const categorySelect = documentItem.querySelector(".document-category-select");
+                const categoryText = documentItem.querySelector(".document-category");
+                const isEditing = Boolean(nameInput || categorySelect);
+                const name = (nameInput ? nameInput.value : nameText.textContent).toLowerCase();
+                const category = (categorySelect ? categorySelect.value : categoryText.textContent)
+                    .toLowerCase();
+                const matches = name.includes(query) || category.includes(query);
+                documentItem.hidden = !matches && !isEditing;
                 if (matches) {
                     matchingDocuments += 1;
                 }
@@ -86,6 +175,21 @@
         }
 
         documentSearchInput.addEventListener("input", filterDocuments);
+
+        function createCategorySelect(selectedCategory) {
+            const categorySelect = document.createElement("select");
+            categorySelect.setAttribute("aria-label", "Document category");
+
+            validCategories.forEach(function (category) {
+                const option = document.createElement("option");
+                option.value = category;
+                option.textContent = category;
+                categorySelect.appendChild(option);
+            });
+
+            categorySelect.value = selectedCategory;
+            return categorySelect;
+        }
 
         function addRemoveButton(documentItem) {
             const editButton = document.createElement("button");
@@ -102,11 +206,17 @@
             });
 
             editButton.addEventListener("click", function () {
-                const nameText = documentItem.firstChild;
+                const nameText = documentItem.querySelector(".document-name");
+                const categoryText = documentItem.querySelector(".document-category");
                 const nameInput = document.createElement("input");
                 nameInput.type = "text";
+                nameInput.className = "document-name-input";
                 nameInput.value = nameText.textContent;
+                nameInput.dataset.originalValue = nameText.textContent;
                 nameInput.setAttribute("aria-label", "Document name");
+                const categorySelect = createCategorySelect(categoryText.textContent);
+                categorySelect.className = "document-category-select";
+                categorySelect.dataset.originalValue = categoryText.textContent;
 
                 const validationMessage = document.createElement("span");
                 validationMessage.setAttribute("aria-live", "polite");
@@ -120,6 +230,7 @@
                 cancelButton.textContent = "Cancel";
 
                 documentItem.replaceChild(nameInput, nameText);
+                documentItem.replaceChild(categorySelect, categoryText);
                 documentItem.insertBefore(validationMessage, editButton);
                 documentItem.insertBefore(saveButton, editButton);
                 documentItem.insertBefore(cancelButton, editButton);
@@ -132,9 +243,16 @@
                         validationMessage.textContent = "Document name cannot be empty.";
                         return;
                     }
+                    const updatedCategory = categorySelect.value;
+                    if (!validCategories.includes(updatedCategory)) {
+                        validationMessage.textContent = "Please select a valid category.";
+                        return;
+                    }
 
                     nameText.textContent = updatedName;
+                    categoryText.textContent = updatedCategory;
                     documentItem.replaceChild(nameText, nameInput);
+                    documentItem.replaceChild(categoryText, categorySelect);
                     validationMessage.remove();
                     saveButton.remove();
                     cancelButton.remove();
@@ -146,11 +264,13 @@
 
                 cancelButton.addEventListener("click", function () {
                     documentItem.replaceChild(nameText, nameInput);
+                    documentItem.replaceChild(categoryText, categorySelect);
                     validationMessage.remove();
                     saveButton.remove();
                     cancelButton.remove();
                     editButton.hidden = false;
                     removeButton.hidden = false;
+                    filterDocuments();
                 });
             });
 
@@ -159,23 +279,49 @@
         }
 
         documentsList.replaceChildren();
-        loadDocuments().forEach(function (documentName) {
+        loadDocuments().forEach(function (documentData) {
             const documentItem = document.createElement("li");
-            documentItem.appendChild(document.createTextNode(documentName));
+            const nameText = document.createElement("span");
+            nameText.className = "document-name";
+            nameText.textContent = documentData.name;
+            const categoryText = document.createElement("span");
+            categoryText.className = "document-category";
+            categoryText.textContent = documentData.category;
+            documentItem.appendChild(nameText);
+            documentItem.appendChild(document.createTextNode(" — "));
+            documentItem.appendChild(categoryText);
             addRemoveButton(documentItem);
             documentsList.appendChild(documentItem);
         });
+        if (shouldSaveAfterLoad) {
+            saveDocuments();
+        }
         filterDocuments();
 
         document.getElementById("add-document").addEventListener("click", function () {
             const documentNameInput = document.getElementById("document-name");
+            const documentCategoryInput = document.getElementById("document-category");
             const documentName = documentNameInput.value.trim();
             if (!documentName) {
                 return;
             }
 
+            if (!validCategories.includes(documentCategoryInput.value)) {
+                document.getElementById("document-message").textContent =
+                    "Please select a valid category.";
+                return;
+            }
+
             const newDocument = document.createElement("li");
-            newDocument.appendChild(document.createTextNode(documentName));
+            const nameText = document.createElement("span");
+            nameText.className = "document-name";
+            nameText.textContent = documentName;
+            const categoryText = document.createElement("span");
+            categoryText.className = "document-category";
+            categoryText.textContent = documentCategoryInput.value;
+            newDocument.appendChild(nameText);
+            newDocument.appendChild(document.createTextNode(" — "));
+            newDocument.appendChild(categoryText);
             addRemoveButton(newDocument);
             documentsList.appendChild(newDocument);
             filterDocuments();
