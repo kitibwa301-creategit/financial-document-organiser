@@ -54,6 +54,9 @@
                 return { name: name, category: name };
             });
         let shouldSaveAfterLoad = true;
+        let openDocumentMenu = null;
+        let documentActionMenuCount = 0;
+        let activeDocumentEditor = null;
 
         function saveDocuments() {
             const documents = [];
@@ -167,6 +170,13 @@
                     .toLowerCase();
                 const matches = name.includes(query) || category.includes(query);
                 documentItem.hidden = !matches && !isEditing;
+                if (
+                    documentItem.hidden &&
+                    openDocumentMenu &&
+                    openDocumentMenu.documentItem === documentItem
+                ) {
+                    closeOpenDocumentMenu();
+                }
                 if (matches) {
                     matchingDocuments += 1;
                 }
@@ -191,91 +201,218 @@
             return categorySelect;
         }
 
-        function addRemoveButton(documentItem) {
+        function closeOpenDocumentMenu() {
+            if (!openDocumentMenu) {
+                return;
+            }
+
+            openDocumentMenu.menu.hidden = true;
+            openDocumentMenu.button.setAttribute("aria-expanded", "false");
+            openDocumentMenu = null;
+        }
+
+        function beginDocumentEdit(documentItem, actionsContainer) {
+            if (activeDocumentEditor) {
+                activeDocumentEditor.control.focus();
+                return;
+            }
+
+            const nameText = documentItem.querySelector(".document-name");
+            const categoryText = documentItem.querySelector(".document-category");
+            const nameInput = document.createElement("input");
+            nameInput.type = "text";
+            nameInput.className = "document-name-input";
+            nameInput.value = nameText.textContent;
+            nameInput.dataset.originalValue = nameText.textContent;
+            nameInput.setAttribute("aria-label", "Document name");
+            const categorySelect = createCategorySelect(categoryText.textContent);
+            categorySelect.className = "document-category-select";
+            categorySelect.dataset.originalValue = categoryText.textContent;
+
+            const validationMessage = document.createElement("span");
+            validationMessage.setAttribute("aria-live", "polite");
+
+            const saveButton = document.createElement("button");
+            saveButton.type = "button";
+            saveButton.textContent = "Save";
+
+            const cancelButton = document.createElement("button");
+            cancelButton.type = "button";
+            cancelButton.textContent = "Cancel";
+
+            documentItem.replaceChild(nameInput, nameText);
+            documentItem.replaceChild(categorySelect, categoryText);
+            documentItem.insertBefore(validationMessage, actionsContainer);
+            documentItem.insertBefore(saveButton, actionsContainer);
+            documentItem.insertBefore(cancelButton, actionsContainer);
+            actionsContainer.hidden = true;
+            activeDocumentEditor = { documentItem: documentItem, control: nameInput };
+
+            saveButton.addEventListener("click", function () {
+                const updatedName = nameInput.value.trim();
+                if (!updatedName) {
+                    validationMessage.textContent = "Document name cannot be empty.";
+                    return;
+                }
+                const updatedCategory = categorySelect.value;
+                if (!validCategories.includes(updatedCategory)) {
+                    validationMessage.textContent = "Please select a valid category.";
+                    return;
+                }
+
+                nameText.textContent = updatedName;
+                categoryText.textContent = updatedCategory;
+                documentItem.replaceChild(nameText, nameInput);
+                documentItem.replaceChild(categoryText, categorySelect);
+                validationMessage.remove();
+                saveButton.remove();
+                cancelButton.remove();
+                actionsContainer.hidden = false;
+                activeDocumentEditor = null;
+                filterDocuments();
+                saveDocuments();
+            });
+
+            cancelButton.addEventListener("click", function () {
+                documentItem.replaceChild(nameText, nameInput);
+                documentItem.replaceChild(categoryText, categorySelect);
+                validationMessage.remove();
+                saveButton.remove();
+                cancelButton.remove();
+                actionsContainer.hidden = false;
+                activeDocumentEditor = null;
+                filterDocuments();
+            });
+        }
+
+        function beginCategoryChange(documentItem, actionsContainer) {
+            if (activeDocumentEditor) {
+                activeDocumentEditor.control.focus();
+                return;
+            }
+
+            const categoryText = documentItem.querySelector(".document-category");
+            const categorySelect = createCategorySelect(categoryText.textContent);
+            categorySelect.className = "document-category-select";
+            categorySelect.dataset.originalValue = categoryText.textContent;
+
+            const validationMessage = document.createElement("span");
+            validationMessage.setAttribute("aria-live", "polite");
+
+            const saveButton = document.createElement("button");
+            saveButton.type = "button";
+            saveButton.textContent = "Save";
+
+            const cancelButton = document.createElement("button");
+            cancelButton.type = "button";
+            cancelButton.textContent = "Cancel";
+
+            documentItem.replaceChild(categorySelect, categoryText);
+            documentItem.insertBefore(validationMessage, actionsContainer);
+            documentItem.insertBefore(saveButton, actionsContainer);
+            documentItem.insertBefore(cancelButton, actionsContainer);
+            actionsContainer.hidden = true;
+            activeDocumentEditor = { documentItem: documentItem, control: categorySelect };
+
+            saveButton.addEventListener("click", function () {
+                const updatedCategory = categorySelect.value;
+                if (!validCategories.includes(updatedCategory)) {
+                    validationMessage.textContent = "Please select a valid category.";
+                    return;
+                }
+
+                categoryText.textContent = updatedCategory;
+                documentItem.replaceChild(categoryText, categorySelect);
+                validationMessage.remove();
+                saveButton.remove();
+                cancelButton.remove();
+                actionsContainer.hidden = false;
+                activeDocumentEditor = null;
+                filterDocuments();
+                saveDocuments();
+            });
+
+            cancelButton.addEventListener("click", function () {
+                documentItem.replaceChild(categoryText, categorySelect);
+                validationMessage.remove();
+                saveButton.remove();
+                cancelButton.remove();
+                actionsContainer.hidden = false;
+                activeDocumentEditor = null;
+                filterDocuments();
+            });
+        }
+
+        function addDocumentActions(documentItem) {
+            const actionsContainer = document.createElement("div");
+            actionsContainer.className = "document-actions";
+
+            const actionButton = document.createElement("button");
+            actionButton.type = "button";
+            actionButton.textContent = "⋮";
+            actionButton.setAttribute("aria-label", "Document actions");
+            actionButton.setAttribute("aria-expanded", "false");
+
+            const actionMenu = document.createElement("div");
+            actionMenu.id = "document-action-menu-" + (++documentActionMenuCount);
+            actionMenu.hidden = true;
+            actionMenu.setAttribute("role", "group");
+            actionMenu.setAttribute("aria-label", "Document actions");
+            actionButton.setAttribute("aria-controls", actionMenu.id);
+
             const editButton = document.createElement("button");
             editButton.type = "button";
             editButton.textContent = "Edit";
+            editButton.addEventListener("click", function () {
+                closeOpenDocumentMenu();
+                beginDocumentEdit(documentItem, actionsContainer);
+            });
+
+            const categoryButton = document.createElement("button");
+            categoryButton.type = "button";
+            categoryButton.textContent = "Change category";
+            categoryButton.addEventListener("click", function () {
+                closeOpenDocumentMenu();
+                beginCategoryChange(documentItem, actionsContainer);
+            });
 
             const removeButton = document.createElement("button");
             removeButton.type = "button";
             removeButton.textContent = "Remove";
             removeButton.addEventListener("click", function () {
+                closeOpenDocumentMenu();
                 documentItem.remove();
                 filterDocuments();
                 saveDocuments();
             });
 
-            editButton.addEventListener("click", function () {
-                const nameText = documentItem.querySelector(".document-name");
-                const categoryText = documentItem.querySelector(".document-category");
-                const nameInput = document.createElement("input");
-                nameInput.type = "text";
-                nameInput.className = "document-name-input";
-                nameInput.value = nameText.textContent;
-                nameInput.dataset.originalValue = nameText.textContent;
-                nameInput.setAttribute("aria-label", "Document name");
-                const categorySelect = createCategorySelect(categoryText.textContent);
-                categorySelect.className = "document-category-select";
-                categorySelect.dataset.originalValue = categoryText.textContent;
+            actionMenu.appendChild(editButton);
+            actionMenu.appendChild(categoryButton);
+            actionMenu.appendChild(removeButton);
+            actionsContainer.appendChild(actionButton);
+            actionsContainer.appendChild(actionMenu);
+            documentItem.appendChild(actionsContainer);
 
-                const validationMessage = document.createElement("span");
-                validationMessage.setAttribute("aria-live", "polite");
+            actionButton.addEventListener("click", function () {
+                if (activeDocumentEditor) {
+                    activeDocumentEditor.control.focus();
+                    return;
+                }
 
-                const saveButton = document.createElement("button");
-                saveButton.type = "button";
-                saveButton.textContent = "Save";
+                if (!actionMenu.hidden) {
+                    closeOpenDocumentMenu();
+                    return;
+                }
 
-                const cancelButton = document.createElement("button");
-                cancelButton.type = "button";
-                cancelButton.textContent = "Cancel";
-
-                documentItem.replaceChild(nameInput, nameText);
-                documentItem.replaceChild(categorySelect, categoryText);
-                documentItem.insertBefore(validationMessage, editButton);
-                documentItem.insertBefore(saveButton, editButton);
-                documentItem.insertBefore(cancelButton, editButton);
-                editButton.hidden = true;
-                removeButton.hidden = true;
-
-                saveButton.addEventListener("click", function () {
-                    const updatedName = nameInput.value.trim();
-                    if (!updatedName) {
-                        validationMessage.textContent = "Document name cannot be empty.";
-                        return;
-                    }
-                    const updatedCategory = categorySelect.value;
-                    if (!validCategories.includes(updatedCategory)) {
-                        validationMessage.textContent = "Please select a valid category.";
-                        return;
-                    }
-
-                    nameText.textContent = updatedName;
-                    categoryText.textContent = updatedCategory;
-                    documentItem.replaceChild(nameText, nameInput);
-                    documentItem.replaceChild(categoryText, categorySelect);
-                    validationMessage.remove();
-                    saveButton.remove();
-                    cancelButton.remove();
-                    editButton.hidden = false;
-                    removeButton.hidden = false;
-                    filterDocuments();
-                    saveDocuments();
-                });
-
-                cancelButton.addEventListener("click", function () {
-                    documentItem.replaceChild(nameText, nameInput);
-                    documentItem.replaceChild(categoryText, categorySelect);
-                    validationMessage.remove();
-                    saveButton.remove();
-                    cancelButton.remove();
-                    editButton.hidden = false;
-                    removeButton.hidden = false;
-                    filterDocuments();
-                });
+                closeOpenDocumentMenu();
+                actionMenu.hidden = false;
+                actionButton.setAttribute("aria-expanded", "true");
+                openDocumentMenu = {
+                    button: actionButton,
+                    menu: actionMenu,
+                    documentItem: documentItem
+                };
             });
-
-            documentItem.appendChild(editButton);
-            documentItem.appendChild(removeButton);
         }
 
         documentsList.replaceChildren();
@@ -290,7 +427,7 @@
             documentItem.appendChild(nameText);
             documentItem.appendChild(document.createTextNode(" — "));
             documentItem.appendChild(categoryText);
-            addRemoveButton(documentItem);
+            addDocumentActions(documentItem);
             documentsList.appendChild(documentItem);
         });
         if (shouldSaveAfterLoad) {
@@ -322,7 +459,7 @@
             newDocument.appendChild(nameText);
             newDocument.appendChild(document.createTextNode(" — "));
             newDocument.appendChild(categoryText);
-            addRemoveButton(newDocument);
+            addDocumentActions(newDocument);
             documentsList.appendChild(newDocument);
             filterDocuments();
             saveDocuments();
